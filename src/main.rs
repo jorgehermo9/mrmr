@@ -52,6 +52,7 @@ fn mrmr(dataset_info:&Dataset){
 	mrmr_info.remaining_features.retain(|feature| feature != max_relevance_feature);
 	
 	let mut last_feature = String::from(max_relevance_feature);
+	println!("selected {}",last_feature);
 	
 	for _ in 0.. mrmr_info.remaining_features.len(){
 		let mut m_info_map:HashMap<&String,f64> = HashMap::new();
@@ -66,7 +67,7 @@ fn mrmr(dataset_info:&Dataset){
 		mrmr_info.selected_features.push((String::from(&last_feature),max_mrmr));
 		mrmr_info.remaining_features.retain(|feature| feature != &last_feature);
 		
-		println!("selected {}",last_feature)
+		println!("selected {}",last_feature);
 	}
 	for (index,(feature,value)) in mrmr_info.selected_features.iter().enumerate() {
 		println!("{}. {} -> {}",index,feature,value);
@@ -215,96 +216,7 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 	let dataset_info = Dataset::new(String::from(class),features,features_values,datasize);
 	mrmr(&dataset_info);
 
-	/*
-	let relevance_vector = get_relevance_vector(&features_values,datasize,"class",&features);
-	for pair in &relevance_vector{
-		let (feature,value) = pair;
-		println!("Relevance: {} -> {}",feature,value);
-	}
-
-
-	let (max_feature,max_relevance) = get_max_value(&relevance_vector);
-	println!("Max relevance: {} ->{}",max_feature,max_relevance);
-
-	let mut remaining_features = features.clone();
-	remaining_features.retain(|feature| feature != "class");
-
-	let mut selected_features: Vec<(String,f64)>= Vec::new();
-	selected_features.push((String::from(max_feature),max_relevance));
-	remaining_features.retain(|feature| feature != max_feature);
-	let mut last_feature= String::from(max_feature);
-
-	// Implementación comparando sólo con la ultima seleccionada
-	for _ in 0..remaining_features.len(){
-		let mut current_mrmr_vector: Vec<(&String,f64)> = Vec::new();
-		for target_feature in &remaining_features {
-			//iterate only over remaining features
-			if !remaining_features.contains(target_feature) {
-				continue;
-			}
-			let mut relevance:f64 =0.0;
-			for (feature,value) in &relevance_vector{
-				if target_feature.eq(*feature){
-					relevance = *value;
-				}
-			}
-			let last_feature_vec = vec![String::from(&last_feature)];
-			//Get redundancy comparing to selected values
-			let red = get_redundancy(&features_values, datasize,target_feature, "class", &last_feature_vec);
-			current_mrmr_vector.push((target_feature,get_mrmr(relevance,red)));
-		}
-		let (max_mrmr_feature,max_mrmr) = get_max_value(&current_mrmr_vector);
-		last_feature = String::from(max_mrmr_feature);
-
-		selected_features.push((String::from(max_mrmr_feature),max_mrmr));
-		remaining_features.retain(|feature| feature != &last_feature);
-
-		println!("selected {}",last_feature)
-	}
 	
-	for (index,(feature,value)) in selected_features.iter().enumerate() {
-		println!("{}. {} -> {}",index+1,feature,value);
-	}
-
-	// Implementación comparando todos con todos
-	let mut current_mrmr_vector: Vec<(&String,f64)> = Vec::new();
-	for target_feature in &features{
-		if target_feature == "class" || target_feature == max_feature{ 
-			continue;
-		}
-		let mut relevance:f64 =0.0;
-		for (feature,value) in &relevance_vector{
-			if target_feature.eq(*feature){
-				relevance = *value;
-			}
-		}
-		//Get redundancy comparing to selected values
-		let red = get_redundancy(&features_values, datasize,target_feature, "class", &features);
-		current_mrmr_vector.push((target_feature,get_mrmr(relevance,red)));
-		println!("Calculated for {}",target_feature);
-	}
-
-	for _ in 0..current_mrmr_vector.len() {
-		
-		let (mut max_feature,mut max) = current_mrmr_vector[0];
-		for (feature,value) in &current_mrmr_vector{
-			if *value>max{
-				max = *value;
-				max_feature = feature;
-			}
-		}
-		current_mrmr_vector.retain(|(feature,_)| *feature != max_feature);
-		selected_features.push((String::from(max_feature),max));
-	}
-	
-	for (index,(feature,value)) in selected_features.iter().enumerate() {
-		println!("{}. {} -> {}",index+1,feature,value);
-	}*/
-
-	
-	
-
-
 	Ok(())
 }
 
