@@ -216,8 +216,8 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 	let features_values = get_features_values(&entities,&features);
 
 	let class = "class";
-	features.retain(|feature| feature != "Weight" && feature != "Height" && feature !=class);
-	//features.retain(|feature|  feature !=class);
+	//features.retain(|feature| feature != "Weight" && feature != "Height" && feature !=class);
+	features.retain(|feature|  feature !=class);
 	
 	let dataset_info = Dataset::new(String::from(class),features,features_values,datasize);
 	mrmr(&dataset_info);
