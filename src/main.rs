@@ -35,12 +35,14 @@ impl Dataset {
 }
 struct MrmrInfo<'a>{
 	relevance_map:HashMap<&'a String,f64>,
+	accum_redundancy:HashMap<String,f64>,
 	selected_features:Vec<(String,f64)>,
 	remaining_features:Vec<String>,
 }
 fn mrmr(dataset_info:&Dataset){
 	let mut mrmr_info = MrmrInfo{
 		relevance_map: HashMap::new(),
+		accum_redundancy:HashMap::new(),
 		selected_features: Vec::new(),
 		remaining_features: dataset_info.features.clone(),
 	};
@@ -58,8 +60,12 @@ fn mrmr(dataset_info:&Dataset){
 		let mut m_info_map:HashMap<&String,f64> = HashMap::new();
 		for target_feature in &mrmr_info.remaining_features{
 			let redundancy = mutual_info(dataset_info,(&last_feature,target_feature));
+			let accum_redundancy = mrmr_info.accum_redundancy.entry(String::from(target_feature)).or_insert(0.0);
+			*accum_redundancy+= redundancy;
+			//Accum redundancy = sum of redundancy between target and currently selected features
 			let relevance = *mrmr_info.relevance_map.get(target_feature).unwrap();
-			m_info_map.insert(target_feature,get_mrmr(relevance, redundancy));
+
+			m_info_map.insert(target_feature,get_mrmr(relevance, *accum_redundancy/dataset_info.datasize as f64));
 		}
 		let (max_mrmr_feature,max_mrmr) = get_max_value(&m_info_map);
 		last_feature = String::from(max_mrmr_feature);
@@ -175,7 +181,7 @@ fn get_relevance_vector<'a>(dataset_info: &'a Dataset)
 }
 
 fn get_mrmr(relevance:f64,redundancy:f64) ->f64{
-	relevance/redundancy
+	relevance-redundancy
 }
 fn get_max_value<'a>(data: &'a HashMap<&String,f64>)-> (&'a String,f64) {
 	let mut max_feature= data.iter().next().unwrap().0;
@@ -210,8 +216,8 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 	let features_values = get_features_values(&entities,&features);
 
 	let class = "class";
-	//features.retain(|feature| feature != "Weight" && feature != "Height" && feature !=class);
-	features.retain(|feature|  feature !=class);
+	features.retain(|feature| feature != "Weight" && feature != "Height" && feature !=class);
+	//features.retain(|feature|  feature !=class);
 	
 	let dataset_info = Dataset::new(String::from(class),features,features_values,datasize);
 	mrmr(&dataset_info);
