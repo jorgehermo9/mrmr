@@ -4,6 +4,76 @@ use std::io;
 use std::collections::HashMap;
 
 
+struct Dataset{
+	class:String,
+	features:Vec<String>,
+	features_values: HashMap<String,Vec<String>>,
+	datasize:usize,
+	features_probs:HashMap<String,HashMap<String,f64>>
+}
+impl Dataset {
+	fn new(class:String, features:Vec<String>, features_values:HashMap<String,Vec<String>>,datasize:usize) -> Dataset{
+		let mut dataset =  Dataset{
+			class:String::from(class),
+			features,
+			features_values,
+			datasize,
+			features_probs:HashMap::new(),
+		};
+		dataset.get_single_probs();	
+		dataset
+	}
+	fn get_single_probs(& mut self){
+		let mut target_features = self.features.clone();
+		target_features.push(String::from(&self.class));
+		for feature in &target_features{
+			let feature_data = get_feature_data(self.features_values.get(feature).unwrap());
+			let feature_probs = get_probs(&feature_data,self.datasize);
+			self.features_probs.insert(String::from(feature),feature_probs);
+		}
+	}
+}
+struct MrmrInfo<'a>{
+	relevance_map:HashMap<&'a String,f64>,
+	selected_features:Vec<(String,f64)>,
+	remaining_features:Vec<String>,
+}
+fn mrmr(dataset_info:&Dataset){
+	let mut mrmr_info = MrmrInfo{
+		relevance_map: HashMap::new(),
+		selected_features: Vec::new(),
+		remaining_features: dataset_info.features.clone(),
+	};
+
+	mrmr_info.relevance_map = get_relevance_vector(dataset_info);
+	let (max_relevance_feature,max_relevance) = get_max_value(&mrmr_info.relevance_map);
+	
+	mrmr_info.selected_features.push((String::from(max_relevance_feature),max_relevance));
+	mrmr_info.remaining_features.retain(|feature| feature != max_relevance_feature);
+	
+	let mut last_feature = String::from(max_relevance_feature);
+	
+	for _ in 0.. mrmr_info.remaining_features.len(){
+		let mut m_info_map:HashMap<&String,f64> = HashMap::new();
+		for target_feature in &mrmr_info.remaining_features{
+			let redundancy = mutual_info(dataset_info,(&last_feature,target_feature));
+			let relevance = *mrmr_info.relevance_map.get(target_feature).unwrap();
+			m_info_map.insert(target_feature,get_mrmr(relevance, redundancy));
+		}
+		let (max_mrmr_feature,max_mrmr) = get_max_value(&m_info_map);
+		last_feature = String::from(max_mrmr_feature);
+
+		mrmr_info.selected_features.push((String::from(&last_feature),max_mrmr));
+		mrmr_info.remaining_features.retain(|feature| feature != &last_feature);
+		
+		println!("selected {}",last_feature)
+	}
+	for (index,(feature,value)) in mrmr_info.selected_features.iter().enumerate() {
+		println!("{}. {} -> {}",index,feature,value);
+	}
+	
+
+}
 fn get_features_values(entities: &Vec<csv::StringRecord>, features: &Vec<String>)
 	-> HashMap<String,Vec<String>>{
 	let mut feature_values: HashMap<String,Vec<String>>= HashMap::new();
@@ -41,15 +111,15 @@ fn get_probs<Q>(feature_data: &HashMap<Q,u32>,datasize:usize) -> HashMap<Q,f64>
 	probs
 
 }
-fn intersection(features_values:&HashMap<String,Vec<String>>,features:(&str,&str))
+fn intersection(dataset_info:&Dataset,features:(&str,&str))
 	->HashMap<(String,String),u32>{
 	
 	let mut intersect: HashMap<(String,String),u32> = HashMap::new();
 
 	let (a,b) = features;
 
-	let a_values = features_values.get(&String::from(a)).unwrap();
-	let b_values = features_values.get(&String::from(b)).unwrap();
+	let a_values = dataset_info.features_values.get(&String::from(a)).unwrap();
+	let b_values = dataset_info.features_values.get(&String::from(b)).unwrap();
 	
 	let datasize = a_values.len();
 	for i in 0..datasize{
@@ -67,17 +137,17 @@ fn intersection(features_values:&HashMap<String,Vec<String>>,features:(&str,&str
 	intersect
 }
 
-fn mutual_info(features_values:&HashMap<String,Vec<String>>,datasize:usize,features_pair:(&str,&str),data_pair:(&HashMap<String,u32>,&HashMap<String,u32>)) -> f64{
+fn mutual_info(dataset_info:&Dataset,features_pair:(&str,&str)) -> f64{
 
-	let (a,b) = data_pair;
 	let (a_feature,b_feature) = features_pair;
-	let a_probs = get_probs(a,datasize);
-	let b_probs = get_probs(b,datasize);
-	let intersect_probs = get_probs(&intersection(features_values,(a_feature,b_feature)),datasize);
+	let a_probs = dataset_info.features_probs.get(a_feature).unwrap();
+	let b_probs = dataset_info.features_probs.get(b_feature).unwrap();
+
+	let intersect_probs = get_probs(&intersection(dataset_info,(a_feature,b_feature)),dataset_info.datasize);
 
 	let mut m_info:f64=0.0;
-	for (a_instance,_) in a.iter(){
-		for (b_instance,_) in b.iter(){
+	for (a_instance,_) in a_probs.iter(){
+		for (b_instance,_) in b_probs.iter(){
 			if let Some(a_and_b) = intersect_probs.get(&(a_instance.clone(),b_instance.clone())){
 				let a = a_probs.get(a_instance).unwrap() as &f64;
 				let b = b_probs.get(b_instance).unwrap() as &f64;
@@ -91,49 +161,33 @@ fn mutual_info(features_values:&HashMap<String,Vec<String>>,datasize:usize,featu
 	}
 	m_info
 }
-fn get_relevance_vector<'a>(features_values:&HashMap<String,Vec<String>>,datasize:usize,class:&str,features:&'a Vec<String>)
-	->  Vec<(&'a String,f64)>{
+fn get_relevance_vector<'a>(dataset_info: &'a Dataset)
+	->  HashMap<&String,f64>{
 	
-	let class_data = get_feature_data(features_values.get(class).unwrap());
-	let mut mutual_vector: Vec<(&String,f64)> = Vec::new();
+	let mut relevance_map: HashMap<&String,f64> = HashMap::new();
 
-	for feature in features{
-		if feature.eq(class){
-			continue;
-		}
-		let feature_data = get_feature_data(features_values.get(feature).unwrap());
-		let m_info = mutual_info(&features_values,datasize,(feature,"class"),(&feature_data,&class_data));
-			mutual_vector.push((feature,m_info));
+	for feature in &dataset_info.features{
+		let m_info = mutual_info(dataset_info,(feature,"class"));
+		relevance_map.insert(feature,m_info);
 	}
-	mutual_vector
+	relevance_map
 }
-fn get_redundancy(features_values:&HashMap<String,Vec<String>>,datasize:usize,target_feature:&str,class:&str,features:&[String])
-	-> f64{
-	let mut redundancy:f64 = 0.0;
-	let target_data = get_feature_data(features_values.get(target_feature).unwrap());
-	for feature in features{
-		if feature.eq(class)|| feature.eq(target_feature){
-			continue;
-		}
-		let feature_data = get_feature_data(features_values.get(feature).unwrap());
-		let m_info = mutual_info(features_values,datasize,(target_feature,feature),(&target_data,&feature_data));
-		redundancy+=m_info;
-	}
-	redundancy/features.len() as f64
-}
+
 fn get_mrmr(relevance:f64,redundancy:f64) ->f64{
-	relevance-redundancy
+	relevance/redundancy
 }
-fn get_max_value<'a>(vec: &'a Vec<(&String,f64)>)-> (&'a String,f64) {
-	let (mut max_feature,mut max_val) = vec.get(0).unwrap();
-	for (feature,value) in vec{
-		if *value > max_val{
-			max_val = *value;
+fn get_max_value<'a>(data: &'a HashMap<&String,f64>)-> (&'a String,f64) {
+	let mut max_feature= data.iter().next().unwrap().0;
+	let mut max_value:f64 =*data.get(max_feature).unwrap();
+	for (index,(feature,value)) in data.iter().enumerate() {
+		if *value>max_value || index == 0{
 			max_feature = feature;
-		}
+			max_value = *value;
+		} 
 	}
-	(max_feature,max_val)
+	(max_feature,max_value)
 }
+
 fn read_csv() -> Result<(),Box<dyn Error>>{
 
 	let mut rdr = csv::Reader::from_reader(io::stdin());
@@ -154,8 +208,14 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 	
 	let features_values = get_features_values(&entities,&features);
 
-	features.retain(|feature| feature != "Weight" && feature != "Height");
+	let class = "class";
+	//features.retain(|feature| feature != "Weight" && feature != "Height" && feature !=class);
+	features.retain(|feature|  feature !=class);
+	
+	let dataset_info = Dataset::new(String::from(class),features,features_values,datasize);
+	mrmr(&dataset_info);
 
+	/*
 	let relevance_vector = get_relevance_vector(&features_values,datasize,"class",&features);
 	for pair in &relevance_vector{
 		let (feature,value) = pair;
@@ -206,7 +266,7 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 		println!("{}. {} -> {}",index+1,feature,value);
 	}
 
-	/* Implementación comparando todos con todos
+	// Implementación comparando todos con todos
 	let mut current_mrmr_vector: Vec<(&String,f64)> = Vec::new();
 	for target_feature in &features{
 		if target_feature == "class" || target_feature == max_feature{ 
