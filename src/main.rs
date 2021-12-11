@@ -34,53 +34,52 @@ impl Dataset {
 	}
 }
 struct MrmrInfo<'a>{
+	dataset_info: &'a Dataset,
 	relevance_map:HashMap<&'a String,f64>,
 	accum_redundancy:HashMap<String,f64>,
 	selected_features:Vec<(String,f64)>,
 	remaining_features:Vec<String>,
 }
-fn mrmr(dataset_info:&Dataset){
-	let mut mrmr_info = MrmrInfo{
-		relevance_map: HashMap::new(),
-		accum_redundancy:HashMap::new(),
-		selected_features: Vec::new(),
-		remaining_features: dataset_info.features.clone(),
-	};
-
-	mrmr_info.relevance_map = get_relevance_vector(dataset_info);
-	let (max_relevance_feature,max_relevance) = get_max_value(&mrmr_info.relevance_map);
-	
-	mrmr_info.selected_features.push((String::from(max_relevance_feature),max_relevance));
-	mrmr_info.remaining_features.retain(|feature| feature != max_relevance_feature);
-	
-	let mut last_feature = String::from(max_relevance_feature);
-	println!("selected {}",last_feature);
-	
-	for _ in 0.. mrmr_info.remaining_features.len(){
-		let mut m_info_map:HashMap<&String,f64> = HashMap::new();
-		for target_feature in &mrmr_info.remaining_features{
-			let redundancy = mutual_info(dataset_info,(&last_feature,target_feature));
-			let accum_redundancy = mrmr_info.accum_redundancy.entry(String::from(target_feature)).or_insert(0.0);
-			*accum_redundancy+= redundancy;
-			//Accum redundancy = sum of redundancy between target and currently selected features
-			let relevance = *mrmr_info.relevance_map.get(target_feature).unwrap();
-
-			m_info_map.insert(target_feature,get_mrmr(relevance, *accum_redundancy/dataset_info.datasize as f64));
+impl MrmrInfo<'_>{
+	fn new(dataset_info:&Dataset) -> MrmrInfo{
+		MrmrInfo{
+			dataset_info,
+			relevance_map:HashMap::new(),
+			accum_redundancy:HashMap::new(),
+			selected_features:Vec::new(),
+			remaining_features:dataset_info.features.clone(),
 		}
-		let (max_mrmr_feature,max_mrmr) = get_max_value(&m_info_map);
-		last_feature = String::from(max_mrmr_feature);
-
-		mrmr_info.selected_features.push((String::from(&last_feature),max_mrmr));
-		mrmr_info.remaining_features.retain(|feature| feature != &last_feature);
+	}
+	fn select_features(&mut self)-> &Vec<(String,f64)> {
+		self.relevance_map = get_relevance_values(self.dataset_info);
+		let (max_relevance_feature,max_relevance) = get_max_value(&self.relevance_map);
 		
-		println!("selected {}",last_feature);
-	}
-	for (index,(feature,value)) in mrmr_info.selected_features.iter().enumerate() {
-		println!("{}. {} -> {}",index,feature,value);
-	}
+		self.selected_features.push((String::from(max_relevance_feature),max_relevance));
+		self.remaining_features.retain(|feature| feature != max_relevance_feature);
+		
+		let mut last_feature = String::from(max_relevance_feature);
+		
+		for _ in 0.. self.remaining_features.len(){
+			let mut m_info_map:HashMap<&String,f64> = HashMap::new();
+			for target_feature in &self.remaining_features{
+				let redundancy = mutual_info(self.dataset_info,(&last_feature,target_feature));
+				let accum_redundancy = self.accum_redundancy.entry(String::from(target_feature)).or_insert(0.0);
+				*accum_redundancy+= redundancy;
+				//Accum redundancy = sum of redundancy between target and currently selected features
+				let relevance = *self.relevance_map.get(target_feature).unwrap();
 	
-
+				m_info_map.insert(target_feature,get_mrmr(relevance, *accum_redundancy/self.dataset_info.datasize as f64));
+			}
+			let (max_mrmr_feature,max_mrmr) = get_max_value(&m_info_map);
+			last_feature = String::from(max_mrmr_feature);
+	
+			self.selected_features.push((String::from(&last_feature),max_mrmr));
+			self.remaining_features.retain(|feature| feature != &last_feature);			
+		}
+		&self.selected_features
+	}
 }
+
 fn get_features_values(entities: &Vec<csv::StringRecord>, features: &Vec<String>)
 	-> HashMap<String,Vec<String>>{
 	let mut feature_values: HashMap<String,Vec<String>>= HashMap::new();
@@ -100,11 +99,8 @@ fn get_feature_data(target_feature: &Vec<String>) -> HashMap<String,u32>{
 	let mut map: HashMap<String,u32> = HashMap::new();
 
 	for target_value in target_feature{
-		if let Some(value)= map.get_mut(target_value){
-			*value+=1;
-		}else{
-			map.insert(String::from(target_value), 1);
-		}
+		let value = map.entry(String::from(target_value)).or_insert(0);
+		*value+=1;
 	}
 	map
 }
@@ -118,28 +114,25 @@ fn get_probs<Q>(feature_data: &HashMap<Q,u32>,datasize:usize) -> HashMap<Q,f64>
 	probs
 
 }
-fn intersection(dataset_info:&Dataset,features:(&str,&str))
-	->HashMap<(String,String),u32>{
+fn intersection<'a>(dataset_info:&'a Dataset,features:(&str,&str))
+	->HashMap<(&'a String,&'a String),u32>{
 	
-	let mut intersect: HashMap<(String,String),u32> = HashMap::new();
+	let mut intersect: HashMap<(&String,&String),u32> = HashMap::new();
 
 	let (a,b) = features;
 
-	let a_values = dataset_info.features_values.get(&String::from(a)).unwrap();
-	let b_values = dataset_info.features_values.get(&String::from(b)).unwrap();
+	let a_values = dataset_info.features_values.get(a).unwrap();
+	let b_values = dataset_info.features_values.get(b).unwrap();
 	
 	let datasize = a_values.len();
 	for i in 0..datasize{
 		let a_value = a_values.get(i).unwrap();
 		let b_value = b_values.get(i).unwrap();
 		
-		let pair = (String::from(a_value), String::from(b_value));
+		let pair = (a_value, b_value);
 		
-		if let Some(value)= intersect.get_mut(&pair){
-			*value+=1;
-		}else{
-			intersect.insert(pair, 1);
-		}
+		let value = intersect.entry(pair).or_insert(0);
+		*value+=1;
 	}
 	intersect
 }
@@ -155,12 +148,12 @@ fn mutual_info(dataset_info:&Dataset,features_pair:(&str,&str)) -> f64{
 	let mut m_info:f64=0.0;
 	for (a_instance,_) in a_probs.iter(){
 		for (b_instance,_) in b_probs.iter(){
-			if let Some(a_and_b) = intersect_probs.get(&(a_instance.clone(),b_instance.clone())){
-				let a = a_probs.get(a_instance).unwrap() as &f64;
-				let b = b_probs.get(b_instance).unwrap() as &f64;
+			if let Some(a_and_b) = intersect_probs.get(&(a_instance,b_instance)){
+				let a = a_probs.get(a_instance).unwrap();
+				let b = b_probs.get(b_instance).unwrap();
 
-				let mut calc= a_and_b as &f64/(a * b );
-				calc = calc.log10() * a_and_b as &f64;
+				let mut calc= a_and_b/(a * b);
+				calc = calc.log10() * a_and_b;
 				m_info += calc;
 			}//Else: m_info+=0
 			
@@ -168,7 +161,7 @@ fn mutual_info(dataset_info:&Dataset,features_pair:(&str,&str)) -> f64{
 	}
 	m_info
 }
-fn get_relevance_vector<'a>(dataset_info: &'a Dataset)
+fn get_relevance_values<'a>(dataset_info: &'a Dataset)
 	->  HashMap<&String,f64>{
 	
 	let mut relevance_map: HashMap<&String,f64> = HashMap::new();
@@ -220,8 +213,12 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 	features.retain(|feature|  feature !=class);
 	
 	let dataset_info = Dataset::new(String::from(class),features,features_values,datasize);
-	mrmr(&dataset_info);
+	let mut mrmr_info = MrmrInfo::new(&dataset_info);
+	mrmr_info.select_features();
 
+	for (index,(feature,value)) in mrmr_info.selected_features.iter().enumerate() {
+		println!("{}. {} -> {}",index,feature,value);
+	}
 	
 	Ok(())
 }
