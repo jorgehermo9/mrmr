@@ -4,7 +4,7 @@ Maximum Relevance - Minimum redundancy feature selection algorithm implemented i
 ## Usage
 
 There is currently no cli args interface, only basic usage.
-It gets input from a csv datasets **with headers**.The class
+It gets input from a csv dataset **with headers**.The class
 must be named `class` in the headers. 
 
 > File is gotten from stdin.
