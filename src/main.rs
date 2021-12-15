@@ -151,7 +151,8 @@ fn mutual_info(dataset_info:&Dataset,features_pair:(&str,&str)) -> f64{
 		let a_instance_prob = a_probs.get(a_instance).unwrap();
 		let b_instance_prob = b_probs.get(b_instance).unwrap();
 
-		let calc = a_and_b_prob * (a_and_b_prob/(a_instance_prob*b_instance_prob)).log10();
+		//H. Peng utilizes log2 in his implementation instead of log10.
+		let calc = a_and_b_prob * (a_and_b_prob/(a_instance_prob*b_instance_prob)).log2();
 		m_info+=calc;
 	}
 	m_info
