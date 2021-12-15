@@ -2,15 +2,19 @@ from sklearn.preprocessing import KBinsDiscretizer
 import pandas as pd
 import numpy as np
 
-csv = "ObesityDataSet_raw_and_data_sinthetic.csv"
+csv = "~/datasets/iris.data"
 
-df = pd.read_csv(f"~/datasets/{csv}",sep=",")
+df = pd.read_csv(csv,sep=",")
 #print(df.values[:,0:-1])
 columns = df.columns
 
-target_columns = ["Age","Weight","Height"]
-target_bins =[10,10,10]
+#Obesity
+#target_columns = ["Age","Weight","Height"]
+#target_bins =[10,10,10]
 
+#iris
+target_columns = ["sepal length in cm","sepal width in cm","petal length in cm","petal width in cm"]
+target_bins =[10,10,10,10]
 target_index =[]
 for index,column in enumerate(columns):
 	if column in target_columns:
@@ -30,5 +34,5 @@ print(Xt)
 for no,ind in enumerate(target_index):
 	df.iloc[:,ind] = Xt[:,no]
 
-df.to_csv(f"~/datasets/{csv}.disc",index=False)
+df.to_csv(f"{csv}.disc",index=False)
 print(df)

@@ -68,7 +68,7 @@ impl MrmrInfo<'_>{
 				//Accum redundancy = sum of redundancy between target and currently selected features
 				let relevance = *self.relevance_map.get(target_feature).unwrap();
 	
-				m_info_map.insert(target_feature,get_mrmr(relevance, *accum_redundancy/self.dataset_info.datasize as f64));
+				m_info_map.insert(target_feature,get_mrmr(relevance, *accum_redundancy/self.selected_features.len() as f64));
 			}
 			let (max_mrmr_feature,max_mrmr) = get_max_value(&m_info_map);
 			last_feature = String::from(max_mrmr_feature);
@@ -146,18 +146,13 @@ fn mutual_info(dataset_info:&Dataset,features_pair:(&str,&str)) -> f64{
 	let intersect_probs = get_probs(&intersection(dataset_info,(a_feature,b_feature)),dataset_info.datasize);
 
 	let mut m_info:f64=0.0;
-	for (a_instance,_) in a_probs.iter(){
-		for (b_instance,_) in b_probs.iter(){
-			if let Some(a_and_b) = intersect_probs.get(&(a_instance,b_instance)){
-				let a = a_probs.get(a_instance).unwrap();
-				let b = b_probs.get(b_instance).unwrap();
 
-				let mut calc= a_and_b/(a * b);
-				calc = calc.log10() * a_and_b;
-				m_info += calc;
-			}//Else: m_info+=0
-			
-		}
+	for ((a_instance,b_instance),a_and_b_prob) in intersect_probs{
+		let a_instance_prob = a_probs.get(a_instance).unwrap();
+		let b_instance_prob = b_probs.get(b_instance).unwrap();
+
+		let calc = a_and_b_prob * (a_and_b_prob/(a_instance_prob*b_instance_prob)).log10();
+		m_info+=calc;
 	}
 	m_info
 }
@@ -209,15 +204,14 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 	let features_values = get_features_values(&entities,&features);
 
 	let class = "class";
-	//features.retain(|feature| feature != "Weight" && feature != "Height" && feature !=class);
-	features.retain(|feature|  feature !=class);
+	features.retain(|feature| feature !=class);
 	
 	let dataset_info = Dataset::new(String::from(class),features,features_values,datasize);
 	let mut mrmr_info = MrmrInfo::new(&dataset_info);
 	mrmr_info.select_features();
 
 	for (index,(feature,value)) in mrmr_info.selected_features.iter().enumerate() {
-		println!("{}. {} -> {}",index,feature,value);
+		println!("{}. {} -> {}",index+1,feature,value);
 	}
 	
 	Ok(())
