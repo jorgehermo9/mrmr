@@ -8,7 +8,7 @@ It gets input from a csv dataset **with headers**.
 
 > File is gotten from stdin if no csv file specified.
 
-###example
+### Examples
 
 ```console
 cd mrmr
