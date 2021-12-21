@@ -3,14 +3,19 @@ Maximum Relevance - Minimum redundancy feature selection algorithm implemented i
 
 ## Usage
 
-There is currently no cli args interface, only basic usage.
-It gets input from a csv dataset **with headers**.The class
-must be named `class` in the headers. 
+CLI app.
+It gets input from a csv dataset **with headers**.
 
-> File is gotten from stdin.
+> File is gotten from stdin if no csv file specified.
 
 ###example
 
 ```console
-cargo run < dataset.csv
+cd mrmr
+cargo build
+
+./target/debug/mrmr --help
+./target/debug/mrmr -c dataset.csv -n 10
+./target/debug/mrmr --csv dataset.csv --num-features 10 --class rank
+
 ```

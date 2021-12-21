@@ -1,8 +1,9 @@
 
 use std::error::Error;
-use std::io;
+use std::fs;
+use std::io::{self,BufRead,BufReader};
 use std::collections::HashMap;
-
+use clap::Parser;
 
 struct Dataset{
 	class:String,
@@ -35,15 +36,17 @@ impl Dataset {
 }
 struct MrmrInfo<'a>{
 	dataset_info: &'a Dataset,
+	num_features:usize,
 	relevance_map:HashMap<&'a String,f64>,
 	accum_redundancy:HashMap<String,f64>,
 	selected_features:Vec<(String,f64)>,
 	remaining_features:Vec<String>,
 }
 impl MrmrInfo<'_>{
-	fn new(dataset_info:&Dataset) -> MrmrInfo{
+	fn new(dataset_info:&Dataset,num_features:usize) -> MrmrInfo{
 		MrmrInfo{
 			dataset_info,
+			num_features,
 			relevance_map:HashMap::new(),
 			accum_redundancy:HashMap::new(),
 			selected_features:Vec::new(),
@@ -59,7 +62,8 @@ impl MrmrInfo<'_>{
 		
 		let mut last_feature = String::from(max_relevance_feature);
 		
-		for _ in 0.. self.remaining_features.len(){
+		for _ in 0..self.num_features-1{
+
 			let mut m_info_map:HashMap<&String,f64> = HashMap::new();
 			for target_feature in &self.remaining_features{
 				let redundancy = mutual_info(self.dataset_info,(&last_feature,target_feature));
@@ -74,7 +78,8 @@ impl MrmrInfo<'_>{
 			last_feature = String::from(max_mrmr_feature);
 	
 			self.selected_features.push((String::from(&last_feature),max_mrmr));
-			self.remaining_features.retain(|feature| feature != &last_feature);			
+			self.remaining_features.retain(|feature| feature != &last_feature);	
+			println!("Selected {}",&last_feature);		
 		}
 		&self.selected_features
 	}
@@ -184,17 +189,23 @@ fn get_max_value<'a>(data: &'a HashMap<&String,f64>)-> (&'a String,f64) {
 	(max_feature,max_value)
 }
 
-fn read_csv() -> Result<(),Box<dyn Error>>{
+fn read_csv(cli:Args) -> Result<(),Box<dyn Error>>{
 
-	let mut rdr = csv::Reader::from_reader(io::stdin());
+	let reader:Box<dyn BufRead>= match cli.csv{
+		None => Box::new(BufReader::new(io::stdin())),
+		Some(csv) => Box::new(BufReader::new(fs::File::open(csv).unwrap()))
+	};
+	
+	let mut csv_reader = csv::Reader::from_reader(reader);
+
 	let mut features:Vec<String> = Vec::new();
-	for feature in rdr.headers()?{
+	for feature in csv_reader.headers()?{
 		features.push(String::from(feature))
 	}
 	let mut entities: Vec<csv::StringRecord> = Vec::new();
 	//Save each entry of the dataset
-	for result in rdr.records(){
-		let record = result?;
+	for result in csv_reader.records(){
+		let record = result.unwrap();
 		entities.push(record);
 	}
 	let datasize = entities.len();
@@ -204,11 +215,19 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 	
 	let features_values = get_features_values(&entities,&features);
 
-	let class = "class";
-	features.retain(|feature| feature !=class);
+	let class = cli.class;
+	features.retain(|feature| feature !=&class);
 	
 	let dataset_info = Dataset::new(String::from(class),features,features_values,datasize);
-	let mut mrmr_info = MrmrInfo::new(&dataset_info);
+
+	if let Some(features) = cli.num_features{
+		assert!(features > 0)
+	}
+	let num_features = match cli.num_features{
+		Some(features) => if features < dataset_info.features.len() {features} else {dataset_info.features.len()},
+		None => dataset_info.features.len()
+	};
+	let mut mrmr_info = MrmrInfo::new(&dataset_info,num_features);
 	mrmr_info.select_features();
 
 	for (index,(feature,value)) in mrmr_info.selected_features.iter().enumerate() {
@@ -218,9 +237,26 @@ fn read_csv() -> Result<(),Box<dyn Error>>{
 	Ok(())
 }
 
-fn main() {
+#[derive(Parser,Debug)]
+#[clap(author,version,about)]
+struct Args{
+	
+	//Csv file to read (if none specified, it reads from stdin)
+	#[clap(short,long)]
+	csv:Option<String>,
+	
+	//Class feature
+	#[clap(long,default_value_t = String::from("class"))]
+	class:String,
 
-	if let Err(err) = read_csv(){
+	//Number of features to be selected
+	#[clap(short,long)]
+	num_features:Option<usize>,
+}
+fn main() {
+	let cli = Args::parse();
+	println!("{:?}", cli);
+	if let Err(err) = read_csv(cli){
 		panic!("Error reading csv: {}",err)
 	}
 }
