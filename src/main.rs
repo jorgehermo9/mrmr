@@ -62,7 +62,7 @@ impl MrmrInfo<'_>{
 		
 		let mut last_feature = String::from(max_relevance_feature);
 		
-		for _ in 0..self.num_features-1{
+		for _ in 0..self.num_features{
 
 			let mut m_info_map:HashMap<&String,f64> = HashMap::new();
 			for target_feature in &self.remaining_features{
