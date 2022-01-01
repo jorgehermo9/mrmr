@@ -256,7 +256,6 @@ struct Args{
 }
 fn main() {
 	let cli = Args::parse();
-	println!("{:?}", cli);
 	if let Err(err) = read_csv(cli){
 		panic!("Error reading csv: {}",err)
 	}
