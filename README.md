@@ -4,7 +4,7 @@ Maximum Relevance - Minimum redundancy feature selection algorithm implemented i
 ## Usage
 
 CLI app.
-It gets input from a csv dataset **with headers**.
+It gets input from a csv dataset **with headers**.Dataset should be previously discretized.
 
 > File is gotten from stdin if no csv file specified.
 
