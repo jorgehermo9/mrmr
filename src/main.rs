@@ -60,7 +60,9 @@ impl MrmrInfo<'_>{
 		self.selected_features.push((String::from(max_relevance_feature),max_relevance));
 		self.remaining_features.retain(|feature| feature != max_relevance_feature);
 		
+
 		let mut last_feature = String::from(max_relevance_feature);
+		println!("Selected {}",&last_feature);	
 		
 		// -1 features, already 1 selected
 		for _ in 0..self.num_features-1{
@@ -80,7 +82,7 @@ impl MrmrInfo<'_>{
 	
 			self.selected_features.push((String::from(&last_feature),max_mrmr));
 			self.remaining_features.retain(|feature| feature != &last_feature);	
-			println!("Selected {}",&last_feature);		
+			println!("Selected {}",&last_feature);	
 		}
 		&self.selected_features
 	}
@@ -169,7 +171,7 @@ fn get_relevance_values<'a>(dataset_info: &'a Dataset)
 	let mut relevance_map: HashMap<&String,f64> = HashMap::new();
 
 	for feature in &dataset_info.features{
-		let m_info = mutual_info(dataset_info,(feature,"class"));
+		let m_info = mutual_info(dataset_info,(feature,&dataset_info.class));
 		relevance_map.insert(feature,m_info);
 	}
 	relevance_map
@@ -210,8 +212,8 @@ fn read_csv(cli:Args) -> Result<(),Box<dyn Error>>{
 		entities.push(record);
 	}
 	let datasize = entities.len();
-	println!("Read {} lines",datasize);
-	println!("features: {:?}", features);
+	// println!("Read {} lines",datasize);
+	// println!("features: {:?}", features);
 
 	
 	let features_values = get_features_values(&entities,&features);
@@ -224,13 +226,14 @@ fn read_csv(cli:Args) -> Result<(),Box<dyn Error>>{
 	if let Some(features) = cli.num_features{
 		assert!(features > 0)
 	}
-	let num_features = match cli.num_features{
-		Some(features) => if features < dataset_info.features.len() {features} else {dataset_info.features.len()},
-		None => dataset_info.features.len()
-	};
+	
+	let num_features = cli.num_features.unwrap_or(dataset_info.features.len())
+					.min(dataset_info.features.len());
+
 	let mut mrmr_info = MrmrInfo::new(&dataset_info,num_features);
 	mrmr_info.select_features();
 
+	println!("---------------------------------");
 	for (index,(feature,value)) in mrmr_info.selected_features.iter().enumerate() {
 		println!("{}. {} -> {}",index+1,feature,value);
 	}
