@@ -17,11 +17,17 @@ cd mrmr
 #release flag for optimization
 cargo build --release
 ```
+> Executable is generated to ./target/release/mrmr
 
+### Execution with cargo
+
+```console
+cargo run --release -- -c daset.csv -n 10
+```
 ### Examples
 
 ```console
-./target/debug/mrmr --help
-./target/debug/mrmr -c dataset.csv -n 10
-./target/debug/mrmr --csv dataset.csv --num-features 10 --class rank
+./target/release/mrmr --help
+./target/release/mrmr -c dataset.csv -n 10
+./target/release/mrmr --csv dataset.csv --num-features 10 --class rank
 ```
