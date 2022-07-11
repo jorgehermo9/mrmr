@@ -1,5 +1,6 @@
 # mrmr
-Maximum Relevance - Minimum redundancy feature selection algorithm implemented in Rust.
+Simple Maximum Relevance - Minimum redundancy feature selection algorithm implemented in Rust.
+Federated learning version can be found at [fed-mRMR](https://github.com/jorgehermo9/fed-mrmr)
 
 ## Usage
 
